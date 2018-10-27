@@ -242,13 +242,311 @@ int main()
 					http://blog.csdn.net/qq_18343569/article/details/48027639
 					*/
 
+					calcHist(&roi, 1, 0, maskroi, hist, 1, &hsize, &phranges);
+					/*
+					将hist矩阵进行数组范围归一化，都归一化到0~255
+					void normalize(const InputArray src, OutputArray dst, double alpha=1,
+					double beta=0,
+					int normType=NORM_L2, int rtype=-1, InputArray mask=noArray())
+					当用于归一化时，normType应该为cv::NORM_MINMAX，alpha为归一化后的最大值，
+					beta为归一化后的最小值
+					http://www.cnblogs.com/mikewolf2002/archive/2012/10/24/2736504.html
+					*/
+
+					normalize(hist,hist,0,255,CV_MINMAX);
+					trackWindow = selection;
+
+					/*
+					只要鼠标选完区域松开后，且没有按键盘清0键'c'，则trackObject一直保持为1，
+					因此该if函数  if( trackObject < 0 )  只能执行一次，除非重新选择跟踪区域。
+					*/
+
+					trackObject = 1;
+
+					/*
+					与按下'c'键是一样的，这里的all(0)表示的是标量 全部清0
+
+					inline CvScalar cvScalarAll( double val0123 );
+					同时设定VAL0,1,2,3的值；
+					OpenCV里的Scalar：all的意思：
+					scalar所有元素设置为0，其实可以scalar::all(n)，就是原来的CvScalarAll(n)；
+					*/
+
+					histimg = Scalar::all(0);
+
+					/*
+					histing是一个200*300的矩阵，hsize应该是每一个bin的宽度，
+					也就是histing矩阵能分出几个bin出来
+					opencv直方图的bins中存储的是什么?
+					https://zhidao.baidu.com/question/337997654.html
+
+					假设 有数值 0,0,1,2,3,10,12，13 。
+					你分的bins为 0-6 为第一个bin，7-13 为一个bins。
+					那么bins[0] 即第一个bins 存储的数就是 4，
+					原因是 0,0,1,2,3在第一个bin的范围内，
+					bins[1] 存储的数为 3，原因是 10,12,13落在这个[7-13]这个bin内。
+
+					Line111 : hsize=16
+					*/
+
+					int binW = histimg.cols / hsize;	//算出宽
+
+					/*
+						Mat::Mat(); //default
+						Mat::Mat(int rows, int cols, int type);
+						Mat::Mat(Size size, int type);
+						Mat::Mat(int rows, int cols, int type, const Scalar& s);
+					参数说明：
+						int rows：高
+						int cols：宽
+						int type：参见"Mat类型定义"
+						Size size：矩阵尺寸，注意宽和高的顺序：Size(cols, rows)
+						const Scalar& s：用于初始化矩阵元素的数值
+						const Mat& m：拷贝m的矩阵头给新的Mat对象，
+						但是不复制数据！相当于创建了m的一个引用对象
+					转自：http://blog.csdn.net/holybin/article/details/17751063
+					定义一个缓冲单bin矩阵。这里使用的是第二个 重载 函数。
+					重载函数：https://baike.baidu.com/item/%E9%87%8D%E8%BD%BD%E5%87%BD%E6%95%B0/3280477?fr=aladdin
+					*/
+
+					Mat buf(1, hsize, CV_8UC3);
+
+					/*
+					saturate_cast函数为从一个初始类型准确变换到另一个初始类型
+					saturate_cast<uchar>(int v)的作用 就是防止数据溢出，
+					具体的原理可以大致描述如下：
+					if(data<0)
+							data=0;
+					if(data>255)
+					data=255
+
+					转自:http://blog.csdn.net/wenhao_ir/article/details/51545330?locationNum=10&fps=1
+					Vec3b为3个char值的向量
+					CV_8UC3 表示使用8位的 unsigned char 型，每个像素由三个元素组成三通道,
+					初始化为（0，0，255）
+					*/
+
+					for (int i = 0;  i < hsize; i++)
+					{
+						/*
+					   互补色相差180度
+					   颜色->hsv->hue(0,255)->roi->hist(0,255)
+
+					   所以这里只是，以i为输入，把直方图本来各个矩形的颜色算出来，放在buf里。
+					   hsv三个值的取值范围:
+					   h 0-180
+					   s 0-255
+					   v 0-255
+					   http://blog.csdn.net/taily_duan/article/details/51506776
+					   https://wenku.baidu.com/view/eb2d600dbb68a98271fefadc.html
+					   */
+
+						buf.at<Vec3b>(i) = Vec3b(saturate_cast<uchar>(i*180. / hsize), 255, 255);
+						cvtColor(buf, buf, CV_HSV2BGR);   //将hsv又转换成bgr，画矩形颜色的用BGR格式
+
+					}
+
+					for (int i = 0; i < hsize ;i++)
+					{
+						/*
+					   at函数为返回一个指定数组元素的参考值
+					   histimg.rows常量=200
+					   val决定各个矩形的高度
+					   */
+						int val = saturate_cast<int>(hist.at<float>(i)*histimg.rows / 255);
+
+
+						/*
+					   C++: void rectangle(Mat& img, Rect rec, const Scalar& color, int thickness=1, int lineType=8, int shift=0 )
+					   参数介绍：
+					   img 图像.
+					   pt1 矩形的一个顶点。
+					   pt2 矩形对角线上的另一个顶点
+					   color 线条颜色 (RGB) 或亮度（灰度图像 ）(grayscale image）。
+					   thickness 组成矩形的线条的粗细程度。取负值时（如 CV_FILLED）
+					   函数绘制填充了色彩的矩形。
+					   line_type 线条的类型。见cvLine的描述
+					   https://zhidao.baidu.com/question/427970238676959132.html
+
+					   shift 坐标点的小数点位数。
+
+					   histimg.rows是一个常量。histmig.rows=200
+					   Scalar(buf.at<Vec3b>(i))  buf是颜色
+					   计算机里，坐标在左上角，x轴朝右，y朝下
+					   val决定各个矩形的高度
+					   */
+						rectangle(histimg, Point(i*binW, histimg.rows), Point((i + 1)*binW, histimg.rows - val), Scalar(buf.at<Vec3b>(i)), -1, 8);
+
+					}
+
+
+
+
 
 				}
+				/*
+				反向投影 
+				http://blog.csdn.net/qq_18343569/article/details/48028065
+				*/
+				calcBackProject(&hue, 1, 0, hist, backppoj, &phranges);
+				//相与??????这一句注释了也没事 = = ------加上的话，整体来说，噪音要少很多
+
+				backppoj &= mask;
+
+				/*
+				Camshift它是MeanShift算法(Mean Shift算法，又称为均值漂移算法)的改进，
+				称为连续自适应的MeanShift算法，
+				CamShift算法的全称是"Continuously Adaptive Mean-SHIFT"，
+				它的基本思想是视频图像的所有帧作MeanShift运算，并将上一帧的结果
+				（即Search Window的中心和大小）
+				作为下一帧MeanShift算法的Search Window的初始值，如此迭代下去。
+
+
+				对于OPENCV中的CAMSHIFT例子，是通过计算目标HSV空间下的HUE分量直方图，
+				通过直方图反向投影得到目标像素的概率分布，
+				然后通过调用CV库中的CAMSHIFT算法，自动跟踪并调整目标窗口的中心位置与大小。
+				https://baike.baidu.com/item/Camshift/5302311?fr=aladdin
+
+				cvCamShift(IplImage* imgprob, CvRect windowIn, CvTermCriteria criteria,
+				CvConnectedComp* out, CvBox2D* box=0);
+				imgprob：色彩概率分布图像。
+				windowIn：Search Window的初始值。
+				Criteria：用来判断搜寻是否停止的一个标准。
+				out：保存运算结果,包括新的Search Window的位置和面积。
+				box：包含被跟踪物体的最小矩形。
+				http://blog.csdn.net/houdy/article/details/191828
+
+				CV_INLINE  CvTermCriteria  cvTermCriteria( int type, int max_iter,
+				double epsilon )
+				{
+				CvTermCriteria t;
+				t.type = type;
+				t.max_iter = max_iter;
+				t.epsilon = (float)epsilon;
+				return t;
+				}
+				该函数是内联函数，返回的值为CvTermCriteria结构体。
+				看得出该函数还是c接口想使用c语言来模拟面向对象的结构，其中的参数为：
+				type：
+				- CV_TERMCRIT_ITER  在当算法迭代次数超过max_iter的时候终止。
+				- CV_TERMCRIT_EPS   在当算法得到的精度低于epsolon时终止；
+				-CV_TERMCRIT_ITER+CV_TERMCRIT_EPS
+				当算法迭代超过max_iter或者当获得的精度低于epsilon的时候，哪个先满足就停止
+				max_iter：迭代的最大次数
+				epsilon：要求的精度
+				http://www.cnblogs.com/shouhuxianjian/p/4529174.html
+
+				L231 trackWindow = selection;
+				*/
+
+				//trackWindow 为鼠标选择的区域，TermCriteria为确定迭代终止的准则
+				RotatedRect trackBox = CamShift(backppoj, trackWindow, TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 10, 1));
+
+				if (trackWindow.area() <= 1)
+				{
+					int cols = backppoj.cols, rows = backppoj.rows, r = (MIN(cols, rows) + 5) / 6;
+					trackWindow = Rect(trackWindow.x - r, trackWindow.y - r, trackWindow.x + r, trackWindow.y + r) & Rect(0, 0, cols, rows);
+
+
+				}
+
+				if (backprojMode)
+				{
+					cvtColor(backppoj, image, COLOR_GRAY2RGB);
+
+				}
+				/*
+				void cvEllipse( CvArr* img, CvPoint center, CvSize axes, double angle,
+				double start_angle, double end_angle, CvScalar color,
+				int thickness=1, int line_type=8, int shift=0 );
+				img                 图像。
+				center              椭圆圆心坐标。
+
+				axes                轴的长度。
+				angle               偏转的角度。
+				start_angle         圆弧起始角的角度。
+				end_angle           圆弧终结角的角度。
+				color               线条的颜色。
+				thickness           线条的粗细程度。
+				line_type           线条的类型,见CVLINE的描述。
+				shift               圆心坐标点和数轴的精度。
+
+				lineType – 线型
+				Type of the line:
+				8 (or omitted) - 8-connected line.
+				4 - 4-connected line.
+				CV_AA - antialiased line. 抗锯齿线。
+				shift – 坐标点小数点位数.
+
+				跟踪的时候以椭圆为代表目标
+				*/
+
+				ellipse(image, trackBox, Scalar(0, 0, 255), 3, CV_AA);
 			}
 
 
 
 		}
+
+		//后面的代码是不管pause为真还是为假都要执行的 
+		else if(trackObject<0)      //同时也是在按了暂停字母以后
+		paused = false;
+
+		if (selectObject && selection.width > 0 && selection.height > 0)
+		{
+			Mat roi(image, selection);
+			bitwise_not(roi, roi);		//bitwise_not 为将每一个bit位取反
+
+
+		}
+
+		imshow("CamShift", image);
+		imshow("直方图", histimg);
+		int i;
+
+		/*
+	   waitKey(x);
+	   第一个参数： 等待x ms，如果在此期间有按键按下，则立即结束并返回按下按键的
+	   ASCII码，否则返回-1
+	   如果x=0，那么无限等待下去，直到有按键按下
+	   http://blog.sina.com.cn/s/blog_82a790120101jsp1.html
+	   */
+
+		char c = (char)waitKey(10);
+		if (27 == c)     //退出键
+			break;
+		switch (c)
+		{
+		case 'b':		//反向投影模型 img/mask交替
+			backprojMode = !backprojMode;
+			break;
+		case 'c':		//清零跟踪目标对象
+				trackObject = 0;
+				histimg = Scalar::all(0);
+				break;
+		case 'h':		//显示直方图交替
+			showHist = !showHist;
+			if (!showHist)
+			{
+				destroyWindow("直方图");
+			}
+			else
+			{
+				cvNamedWindow("直方图", 1);
+			}
+			break;
+
+		case 'p':		//暂停跟踪交替
+			paused = !paused;
+			break;
+
+		default:
+			break;
+		}
+
+
 	}
+
+	return 0;
 
 }
