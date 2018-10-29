@@ -22,6 +22,7 @@
 highgui为跨平台的gui/IO组件，支持图像、视频、摄像头的文件读取显示以及转码
 */
 
+
 using namespace std;
 using namespace cv;
 
@@ -36,8 +37,15 @@ bool backprojMode = false;      //表示是否进入反向投影模式，true表示准备进入反向
 bool selectObject = false;		//代表是否在选要跟踪的初始目标，true表示正在用鼠标选择
 int trackObject = 0;			//代表追踪目标数目 ？
 bool showHist = true;			//是否显示直方图
-Point origin;					//y=用于保存鼠标第一次选择时单击点的位置
+Point origin;					//用于保存鼠标第一次选择时单击点的位置
 Rect selection;					//用于保存鼠标选择的矩形框
+/*
+Rect(int _x,int _y,int _width,int _height);
+参数意思为：左上角x坐标
+左上角y坐标
+矩形的宽
+矩形的高 
+*/
 int vmin = 10, vmax = 256, smin = 30;
 
 //onMouse鼠标回调函数
@@ -56,7 +64,7 @@ static void onMouse(int event,int x,int y,int,void*)
 		selection.width = std::abs(x - origin.x);  //矩形宽
 		selection.height = std::abs(y - origin.y); //矩形高
 	
-		//用于确定所选的矩形区域在图片范围内 ？
+		//用于确定所选的矩形区域在图片范围内 ？&= 是按位与之后赋值
 		selection &= Rect(0, 0, image.cols, image.rows);
 	
 	}
@@ -117,7 +125,7 @@ const char* keys =
 //main()函数  控制台应用程序入口
 int main()
 {
-	ShowHelpText(); 
+	ShowHelpText();
 
 	VideoCapture cap;   //定义一个摄像头捕获的类对象
 	Rect trackWindow;
@@ -134,14 +142,20 @@ int main()
 
 	}
 
-	namedWindow("直方图",0);
+	namedWindow("直方图", 0);
 	namedWindow("CamShift", 0);
-	setMouseCallback("CamShift",onMouse,0);  //消息响应机制
+	setMouseCallback("CamShift", onMouse, 0);  //消息响应机制
 
 	//createTrackbar函数的功能是在对应的窗口创建滑动条，
-	createTrackbar("Vmin","CamShift",&vmin,256,0);		// 滑动条Vmin, vmin表示滑动条的值，最大为256
+	//形式参数一、trackbarname：滑动空间的名称；
+    //形式参数二、winname：滑动空间用于依附的图像窗口的名称；
+	//形式参数三、value：初始化阈值；
+	//形式参数四、count：滑动控件的刻度范围；
+	//形式参数五、TrackbarCallback是回调函数，其定义如下：
+
+	createTrackbar("Vmin", "CamShift", &vmin, 256, 0);		// 滑动条Vmin, vmin表示滑动条的值，最大为256
 	createTrackbar("Vmax", "CamShift", &vmax, 256, 0);  //最后一个参数为0代表没有调用滑动拖动的响应函数  
-	createTrackbar("Smin","CamShift",&smin,256,0);		//vmin,vmax,smin初始值分别为10,256,30  
+	createTrackbar("Smin", "CamShift", &smin, 256, 0);		//vmin,vmax,smin初始值分别为10,256,30  
 
 	/*
 		CV_8UC1，CV_8UC2，CV_8UC3。最后的1、2、3表示通道数，譬如RGB3通道就用CV_8UC3。
@@ -220,7 +234,7 @@ int main()
 				{
 					//此处的构造函数roi用的是Mat hue的矩阵头
 					//且roi的数据指针指向hue，即共用相同的数据，select为其感兴趣的区域
-					Mat roi(hue,selection),maskroi(mask,selection);		//mask保存的hsv的最小值
+					Mat roi(hue, selection), maskroi(mask, selection);		//mask保存的hsv的最小值
 					 /*
 					将roi的0通道计算直方图并通过mask放入hist中，hsize为每一维直方图的大小
 					calcHist函数来计算图像直方图
@@ -253,7 +267,7 @@ int main()
 					http://www.cnblogs.com/mikewolf2002/archive/2012/10/24/2736504.html
 					*/
 
-					normalize(hist,hist,0,255,CV_MINMAX);
+					normalize(hist, hist, 0, 255, CV_MINMAX);
 					trackWindow = selection;
 
 					/*
@@ -326,7 +340,7 @@ int main()
 					初始化为（0，0，255）
 					*/
 
-					for (int i = 0;  i < hsize; i++)
+					for (int i = 0; i < hsize; i++)
 					{
 						/*
 					   互补色相差180度
@@ -346,7 +360,7 @@ int main()
 
 					}
 
-					for (int i = 0; i < hsize ;i++)
+					for (int i = 0; i < hsize; i++)
 					{
 						/*
 					   at函数为返回一个指定数组元素的参考值
@@ -385,7 +399,7 @@ int main()
 
 				}
 				/*
-				反向投影 
+				反向投影
 				http://blog.csdn.net/qq_18343569/article/details/48028065
 				*/
 				calcBackProject(&hue, 1, 0, hist, backppoj, &phranges);
@@ -482,71 +496,71 @@ int main()
 				*/
 
 				ellipse(image, trackBox, Scalar(0, 0, 255), 3, CV_AA);
+
+
 			}
 
+			}
+
+			//后面的代码是不管pause为真还是为假都要执行的 
+			else if (trackObject < 0)      //同时也是在按了暂停字母以后
+				paused = false;
+
+			if (selectObject && selection.width > 0 && selection.height > 0)
+			{
+				Mat roi(image, selection);
+				bitwise_not(roi, roi);		//bitwise_not 为将每一个bit位取反
 
 
-		}
+			}
 
-		//后面的代码是不管pause为真还是为假都要执行的 
-		else if(trackObject<0)      //同时也是在按了暂停字母以后
-		paused = false;
+			imshow("CamShift", image);
+			imshow("直方图", histimg);
+			int i;
 
-		if (selectObject && selection.width > 0 && selection.height > 0)
-		{
-			Mat roi(image, selection);
-			bitwise_not(roi, roi);		//bitwise_not 为将每一个bit位取反
+			/*
+		   waitKey(x);
+		   第一个参数： 等待x ms，如果在此期间有按键按下，则立即结束并返回按下按键的
+		   ASCII码，否则返回-1
+		   如果x=0，那么无限等待下去，直到有按键按下
+		   http://blog.sina.com.cn/s/blog_82a790120101jsp1.html
+		   */
 
-
-		}
-
-		imshow("CamShift", image);
-		imshow("直方图", histimg);
-		int i;
-
-		/*
-	   waitKey(x);
-	   第一个参数： 等待x ms，如果在此期间有按键按下，则立即结束并返回按下按键的
-	   ASCII码，否则返回-1
-	   如果x=0，那么无限等待下去，直到有按键按下
-	   http://blog.sina.com.cn/s/blog_82a790120101jsp1.html
-	   */
-
-		char c = (char)waitKey(10);
-		if (27 == c)     //退出键
-			break;
-		switch (c)
-		{
-		case 'b':		//反向投影模型 img/mask交替
-			backprojMode = !backprojMode;
-			break;
-		case 'c':		//清零跟踪目标对象
+			char c = (char)waitKey(10);
+			if (27 == c)     //退出键
+				break;
+			switch (c)
+			{
+			case 'b':		//反向投影模型 img/mask交替
+				backprojMode = !backprojMode;
+				break;
+			case 'c':		//清零跟踪目标对象
 				trackObject = 0;
 				histimg = Scalar::all(0);
 				break;
-		case 'h':		//显示直方图交替
-			showHist = !showHist;
-			if (!showHist)
-			{
-				destroyWindow("直方图");
-			}
-			else
-			{
-				cvNamedWindow("直方图", 1);
-			}
-			break;
+			case 'h':		//显示直方图交替
+				showHist = !showHist;
+				if (!showHist)
+				{
+					destroyWindow("直方图");
+				}
+				else
+				{
+					cvNamedWindow("直方图", 1);
+				}
+				break;
 
-		case 'p':		//暂停跟踪交替
-			paused = !paused;
-			break;
+			case 'p':		//暂停跟踪交替
+				paused = !paused;
+				break;
 
-		default:
-			break;
+			default:
+				break;
+			}
+
+
 		}
 
+		return 0;
 
 	}
-
-	return 0;
-
-}
